@@ -187,7 +187,7 @@ BaseProduction = Class({
         self.brain.base:AddMobileJob(self.mexJob)
         self.hydroJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = JOB_INF, targetSpend = JOB_INF, work = "Hydro", keep = true, priority = NORMAL })
         self.brain.base:AddMobileJob(self.hydroJob)
-        self.unfinishedJob = self.brain.base:CreateGenericJob({ duplicates = 3, count = JOB_INF, targetSpend = 3, work = "Unfinished", keep = true, priority = LOW-1, assist = false })
+        self.unfinishedJob = self.brain.base:CreateGenericJob({ duplicates = 3, count = JOB_INF, targetSpend = 0, work = "Unfinished", keep = true, priority = LOW-1, assist = false })
         self.brain.base:AddMobileJob(self.unfinishedJob)
         -- Pgens - controlled via target spend
         self.t1PgenJob = self.brain.base:CreateGenericJob({ duplicates = 10, count = JOB_INF, targetSpend = 0, work = "PgenT1", keep = true, priority = NORMAL, area = 'Base' })
@@ -226,6 +226,11 @@ BaseProduction = Class({
             end
         else
             self.hydroJob.priority=LOW
+        end
+        if self.brain.monitor.units.mex.t1<10 then
+            self.unfinishedJob.targetSpend=0
+        else
+            self.unfinishedJob.targetSpend=5
         end
         self.hydroJob.duplicates = math.min(math.max(2,self.brain.monitor.units.facs.land.total.t1/4),availableHydro/4)
         local engiesRequired = math.max(4+math.min(10,availableMex/2),massRemaining/2)-self.brain.monitor.units.engies.t1
