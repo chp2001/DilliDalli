@@ -7,7 +7,7 @@ function BeginSession()
 end
 
 DilliDalliYeOldeCreateResourceDeposit = CreateResourceDeposit
-local DilliDalliCreateMarker = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').CreateMarker
+local DilliDalliCreateMarker = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').CreateMarker
 CreateResourceDeposit = function(t,x,y,z,size)
     DilliDalliCreateMarker(t,x,y,z,size)
     DilliDalliYeOldeCreateResourceDeposit(t,x,y,z,size)
