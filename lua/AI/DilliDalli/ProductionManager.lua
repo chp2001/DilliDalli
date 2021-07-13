@@ -7,6 +7,54 @@ CRITICAL = 400
 
 JOB_INF = 1000000000
 
+JobGroup = Class({
+    Init = function(self)
+        self.jobs = {}
+    end,
+    Add = function(self,job,data)
+        table.insert(self.jobs,{job=job,data=data})
+    end,
+    GetSpend = function(self)
+        local sum = 0
+        for _, job in self.jobs do
+            sum = sum + job.job.actualSpend
+        end
+        return sum
+    end,
+    GetTargetSpend = function(self)
+        local sum = 0
+        for _, job in self.jobs do
+            sum = sum + job.job.targetSpend
+        end
+        return sum
+    end,
+    Reset = function(self)
+        for _, job in self.jobs do
+            job.job.targetSpend = 0
+        end
+    end,
+    Allocate = function(self,cond,amount)
+        local sumpriority = 0
+        for _, job in self.jobs do
+            if job.data[cond] > 0 then
+                sumpriority = sumpriority + job.data[cond]
+            end
+        end
+        sumpriority = math.max(sumpriority,1)
+        for _,job in self.jobs do
+            if job.data[cond] > 0 then
+                job.job.targetSpend = job.data[cond]*amount/sumpriority
+            end
+        end
+    end,
+})
+
+function CreateJobGroup()
+    local jg = JobGroup()
+    jg:Init()
+    return jg
+end
+
 ProductionManager = Class({
     --[[
         Responsible for:

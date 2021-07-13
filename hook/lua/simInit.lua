@@ -1,4 +1,4 @@
-local DilliDalliBeginSession = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').BeginSession
+local DilliDalliBeginSession = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').BeginSession
 
 local DilliDalliYeOldeBeginSession = BeginSession
 function BeginSession()
