@@ -4,6 +4,7 @@ local PROFILER = import('/mods/TechAI/lua/AI/DilliDalli/Profiler.lua').GetProfil
 local CreatePriorityQueue = import('/mods/TechAI/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
 local MAP = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').GetMap()
 local CanBuildStructureAt = moho.aibrain_methods.CanBuildStructureAt
+local MYMARKERS = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS
 
 -- Zone classes
 local ALLIED = "allied"
@@ -99,7 +100,7 @@ IntelManager = Class({
     end,
     FindNearestEmptyMarker = function(self,pos,t)
         local start = PROFILER:Now()
-        local markers = ScenarioUtils.GetMarkers()
+        local markers = MYMARKERS
         local best = 1000000
         local bestMarker = nil
         local bp = self.brain.aiBrain:GetUnitBlueprint('uab1103')
@@ -164,7 +165,7 @@ IntelManager = Class({
             return self.massNum
         end
         local num = 0
-        local markers = ScenarioUtils.GetMarkers()
+        local markers = MYMARKERS
         for _, v in markers do
             if v.type == "Mass" and self:CanBuildOnMarker(v.position) then
                 num = num + 1
