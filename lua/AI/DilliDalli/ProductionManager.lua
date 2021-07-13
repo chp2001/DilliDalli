@@ -1,60 +1,12 @@
-local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
-local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
-
+local PROFILER = import('/mods/TechAI/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+local MAP = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local Cond = import('/mods/TechAI/lua/AI/DilliDalli/ConditionalJobs.lua')
 LOW = 100
 NORMAL = 200
 HIGH = 300
 CRITICAL = 400
 
 JOB_INF = 1000000000
-
-JobGroup = Class({
-    Init = function(self)
-        self.jobs = {}
-    end,
-    Add = function(self,job,data)
-        table.insert(self.jobs,{job=job,data=data})
-    end,
-    GetSpend = function(self)
-        local sum = 0
-        for _, job in self.jobs do
-            sum = sum + job.job.actualSpend
-        end
-        return sum
-    end,
-    GetTargetSpend = function(self)
-        local sum = 0
-        for _, job in self.jobs do
-            sum = sum + job.job.targetSpend
-        end
-        return sum
-    end,
-    Reset = function(self)
-        for _, job in self.jobs do
-            job.job.targetSpend = 0
-        end
-    end,
-    Allocate = function(self,cond,amount)
-        local sumpriority = 0
-        for _, job in self.jobs do
-            if job.data[cond] > 0 then
-                sumpriority = sumpriority + job.data[cond]
-            end
-        end
-        sumpriority = math.max(sumpriority,1)
-        for _,job in self.jobs do
-            if job.data[cond] > 0 then
-                job.job.targetSpend = job.data[cond]*amount/sumpriority
-            end
-        end
-    end,
-})
-
-function CreateJobGroup()
-    local jg = JobGroup()
-    jg:Init()
-    return jg
-end
 
 ProductionManager = Class({
     --[[
@@ -181,16 +133,21 @@ BaseProduction = Class({
     Initialise = function(self,brain,coord)
         self.name = "Base"
         self.brain = brain
-        self.coord = coord
+        local x,y=self.brain.aiBrain:GetArmyStartPos()
+        self.coord = {x,GetSurfaceHeight(x,y),y}
         -- Mex expansion, controlled via duplicates (considered to cost nothing mass wise)
         self.mexJob = self.brain.base:CreateGenericJob({ duplicates = 10, count = JOB_INF, targetSpend = JOB_INF, work = "MexT1", keep = true, priority = LOW, assist = false })
         self.brain.base:AddMobileJob(self.mexJob)
+        self.hydroJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = JOB_INF, targetSpend = JOB_INF, work = "Hydro", keep = true, priority = NORMAL })
+        self.brain.base:AddMobileJob(self.hydroJob)
+        self.unfinishedJob = self.brain.base:CreateGenericJob({ duplicates = 3, count = JOB_INF, targetSpend = 10, work = "Unfinished", keep = true, priority = LOW, assist = false })
+        self.brain.base:AddMobileJob(self.unfinishedJob)
         -- Pgens - controlled via target spend
-        self.t1PgenJob = self.brain.base:CreateGenericJob({ duplicates = 10, count = JOB_INF, targetSpend = 0, work = "PgenT1", keep = true, priority = NORMAL })
+        self.t1PgenJob = self.brain.base:CreateGenericJob({ duplicates = 10, count = JOB_INF, targetSpend = 0, work = "PgenT1", keep = true, priority = NORMAL, area = 'Base' })
         self.brain.base:AddMobileJob(self.t1PgenJob)
-        self.t2PgenJob = self.brain.base:CreateGenericJob({ duplicates = 2, count = JOB_INF, targetSpend = 0, work = "PgenT2", keep = true, priority = NORMAL })
+        self.t2PgenJob = self.brain.base:CreateGenericJob({ duplicates = 2, count = JOB_INF, targetSpend = 0, work = "PgenT2", keep = true, priority = NORMAL, area = 'Base' })
         self.brain.base:AddMobileJob(self.t2PgenJob)
-        self.t3PgenJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = JOB_INF, targetSpend = 0, work = "PgenT3", keep = true, priority = NORMAL })
+        self.t3PgenJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = JOB_INF, targetSpend = 0, work = "PgenT3", keep = true, priority = NORMAL, area = 'Base' })
         self.brain.base:AddMobileJob(self.t3PgenJob)
         -- Engies - controlled via job count (considered to cost nothing mass wise)
         self.t1EngieJob = self.brain.base:CreateGenericJob({ duplicates = 2, count = 0, targetSpend = JOB_INF, work = "EngineerT1", keep = true, priority = NORMAL })
@@ -210,8 +167,21 @@ BaseProduction = Class({
     ManageJobs = function(self,mass)
         local massRemaining = mass - self.t1EngieJob.actualSpend
         local availableMex = self.brain.intel:GetNumAvailableMassPoints()
+        local availableHydro = self.brain.intel:GetNumAvailableHydroPoints(true)
+        --LOG('hydrojob = '..repr(self.hydroJob))
         self.mexJob.duplicates = availableMex/2
-        local engiesRequired = 1+math.min(3,math.log(availableMex+1))*math.sqrt(mass)-self.brain.monitor.units.engies.t1
+        if self.brain.monitor.units.hydro.t1<1 and availableHydro>1 then
+            local valid,dist=self.brain.intel:FindNearestEmptyMarker(self.coord,'Hydrocarbon')
+            if dist<40 then
+                self.hydroJob.priority=CRITICAL
+            else
+                self.hydroJob.priority=NORMAL
+            end
+        else
+            self.hydroJob.priority=LOW
+        end
+        self.hydroJob.duplicates = math.min(math.max(2,self.brain.monitor.units.facs.land.total.t1/4),availableHydro/4)
+        local engiesRequired = math.max(4+math.min(10,availableMex/2),massRemaining/2)-self.brain.monitor.units.engies.t1
         -- Drop out early if we're still doing our build order
         if not self.brain.base.isBOComplete then
             self.t1EngieJob.count = engiesRequired
@@ -361,7 +331,6 @@ LandProduction = Class({
         --        - existence of support factories
         self.t2HQJob.targetSpend = 0
         self.t2HQJob.count = 0
-        self.t3HQJob.targetSpend = 0
         self.t3HQJob.count = 0
         if self.brain.monitor.units.facs.land.hq.t3 > 0 then
             -- We have a t3 HQ
@@ -399,7 +368,6 @@ LandProduction = Class({
         self.t2SupportJob.targetSpend = 0
         self.t2SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t1/4,math.max(self.brain.monitor.units.facs.land.total.t2/2,self.brain.monitor.units.facs.land.total.t3))
         self.t3SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t2/4,self.brain.monitor.units.facs.land.total.t3/2)
-        self.t3SupportJob.targetSpend = 0
         if (t3Spend < t3Target/1.2) and (self.brain.monitor.units.facs.land.idle.t3 == 0) then
             if self.brain.monitor.units.facs.land.total.t2 - self.brain.monitor.units.facs.land.hq.t2 > 0 then
                 self.t3SupportJob.targetSpend = (t3Target - t3Spend)/2
@@ -457,7 +425,6 @@ LandProduction = Class({
             -- T1 spend
             local actualMass = massRemaining*1.2
             self.t1ScoutJob.count = table.getn(self.brain.army.land.groups) - self.brain.monitor.units.land.count.scout
-            self.t1Jobs:Reset()
             if self.brain.monitor.units.land.count.total < 20 then
                 self.t1Jobs:Allocate(1,actualMass)
             elseif self.brain.monitor.units.land.count.t2+self.brain.monitor.units.land.count.t3 < 10 then
@@ -473,7 +440,7 @@ LandProduction = Class({
         -- Upgrade jobs to high/critical priority if there's an urgent need for them (4)
         -- T1 tanks early game
         -- AA if being bombed
-        if (self.brain.monitor.units.land.count.total < 30) and (((self.brain.monitor.units.engies.t1 - 1) * 1.5) > self.brain.monitor.units.land.count.total - self.brain.monitor.units.land.count.scout) then
+        if (self.brain.monitor.units.land.count.total < 30) and (((self.brain.monitor.units.engies.t1 - 1) * 2) > self.brain.monitor.units.land.count.total) then
             self.t1TankJob.priority = HIGH
             self.t1ArtyJob.priority = HIGH
         else
@@ -533,10 +500,10 @@ LandProduction = Class({
         --        - Spend per factory (by tier)
         --        - investment in units
         local t1Spend = self.t1ScoutJob.actualSpend + self.t1TankJob.actualSpend + self.t1ArtyJob.actualSpend + self.t1AAJob.actualSpend
-        local t2Spend = self.t2TankJob.actualSpend + self.t2HoverJob.actualSpend + self.t2AAJob.actualSpend + self.t2MMLJob.actualSpend
-        local t2Target = self.t2TankJob.targetSpend + self.t2HoverJob.targetSpend + self.t2AAJob.targetSpend + self.t2MMLJob.targetSpend
-        local t3Spend = self.t3LightJob.actualSpend + self.t3HeavyJob.actualSpend + self.t3AAJob.actualSpend + self.t3ArtyJob.actualSpend
-        local t3Target = self.t3LightJob.targetSpend + self.t3HeavyJob.targetSpend + self.t3AAJob.targetSpend + self.t3ArtyJob.targetSpend
+        local t2Spend = self.t2TankJob.actualSpend + self.t2RangedJob.actualSpend + self.t2HoverJob.actualSpend + self.t2AAJob.actualSpend + self.t2MMLJob.actualSpend
+        local t2Target = self.t2TankJob.targetSpend + self.t2RangedJob.targetSpend + self.t2HoverJob.targetSpend + self.t2AAJob.targetSpend + self.t2MMLJob.targetSpend
+        local t3Spend = self.t3LightJob.actualSpend + self.t3HeavyJob.actualSpend + self.t3RangedJob.actualSpend + self.t3AAJob.actualSpend + self.t3ArtyJob.actualSpend
+        local t3Target = self.t3LightJob.targetSpend + self.t3HeavyJob.targetSpend + self.t3RangedJob.targetSpend + self.t3AAJob.targetSpend + self.t3ArtyJob.targetSpend
         self.facJob.targetSpend = 0
         self.t2SupportJob.targetSpend = 0
         self.t2SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t1/4,math.max(self.brain.monitor.units.facs.land.total.t2/2,self.brain.monitor.units.facs.land.total.t3))
@@ -577,6 +544,7 @@ LandProduction = Class({
             -- T3 spend
             self.t3LightJob.targetSpend = 0
             self.t3HeavyJob.targetSpend = 0
+            self.t3RangedJob.targetSpend = 0
             self.t3AAJob.targetSpend = 0
             self.t3ArtyJob.targetSpend = 0
         end
@@ -585,6 +553,7 @@ LandProduction = Class({
             -- T2 spend
             local actualMass = massRemaining*1.2
             self.t2TankJob.targetSpend = 0
+            self.t2RangedJob.targetSpend = 0
             self.t2HoverJob.targetSpend = actualMass
             self.t2AAJob.targetSpend = 0
             self.t2MMLJob.targetSpend = 0
@@ -643,7 +612,7 @@ AirProduction = Class({
         self.scoutJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = JOB_INF, targetSpend = 0, work = "AirScoutT1", keep = true, priority = NORMAL })
         self.brain.base:AddFactoryJob(self.scoutJob)
         -- Factories
-        self.facJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AirFactoryT1", keep = true, priority = NORMAL })
+        self.facJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AirFactoryT1", keep = true, priority = NORMAL, area = 'Base' })
         self.brain.base:AddMobileJob(self.facJob)
     end,
 

@@ -1,8 +1,9 @@
-local BOs = import('/mods/DilliDalli/lua/AI/DilliDalli/BuildOrders.lua')
+local BOs = import('/mods/TechAI/lua/AI/DilliDalli/BuildOrders.lua')
 local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
-local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
-local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local PROFILER = import('/mods/TechAI/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+local CreatePriorityQueue = import('/mods/TechAI/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
+local MAP = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local CanBuildStructureAt = moho.aibrain_methods.CanBuildStructureAt
 
 -- Zone classes
 local ALLIED = "allied"
@@ -91,10 +92,8 @@ IntelManager = Class({
         else
             if self:FindNearestEmptyMarker(pos,"Mass") then
                 self.mme[component] = { exists = true }
-                return true
             else
                 self.mme[component] = { exists = false }
-                return false
             end
         end
     end,
@@ -117,7 +116,19 @@ IntelManager = Class({
             end
         end
         PROFILER:Add("FindNearestEmptyMarker",PROFILER:Now()-start)
-        return bestMarker
+        return bestMarker, best
+    end,
+    DoesMarkerExist = function(self,t)
+        local start = PROFILER:Now()
+        local markers = ScenarioUtils.GetMarkers()
+        -- TODO: Support different kinds of pathing
+        for _, v in markers do
+            if v.type == t then
+                PROFILER:Add("DoesMarkerExist",PROFILER:Now()-start)
+                return true
+            end
+        end
+        PROFILER:Add("DoesMarkerExist",PROFILER:Now()-start)
     end,
     CanBuildOnMarker = function(self,pos)
         local alliedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Ally')
@@ -130,6 +141,9 @@ IntelManager = Class({
         end
         local enemyUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Enemy')
         if enemyUnits and (table.getn(enemyUnits) > 0) then
+            return false
+        end
+        if not CanBuildStructureAt(self.brain.aiBrain, 'ueb1103', pos) and not CanBuildStructureAt(self.brain.aiBrain, 'ueb1102', pos) then
             return false
         end
         return true
@@ -147,7 +161,7 @@ IntelManager = Class({
     end,
     GetNumAvailableMassPoints = function(self)
         if self.massNumCached then
-            return self.massNumCached
+            return self.massNum
         end
         local num = 0
         local markers = ScenarioUtils.GetMarkers()
@@ -158,6 +172,32 @@ IntelManager = Class({
         end
         self.massNumCached = true
         self.massNum = num
+        return num
+    end,
+    GetNumAvailableHydroPoints = function(self,allied)
+        if self.hydroNumCached then
+            return self.hydroNum
+        end
+        local num = 0
+        local markers = ScenarioUtils.GetMarkers()
+        for _, v in markers do
+            if v.type == "Hydrocarbon" and self:CanBuildOnMarker(v.position) then
+                if allied then
+                    local zone=self:FindZone(v.position)
+                    if zone.intel.class==ALLIED then
+                        num = num + 1
+                    elseif zone.intel.class==nil then
+                        if self:DoesMarkerExist("Hydrocarbon") then
+                            return 1
+                        end
+                    end
+                else
+                    num = num + 1
+                end
+            end
+        end
+        self.hydroNumCached = true
+        self.hydroNum = num
         return num
     end,
 
@@ -265,12 +305,6 @@ IntelManager = Class({
     end,
     -- TODO: Assess importance of different zones (structure investment)
     ZoneImportance = function(self,zone,alliedUnits,enemyUnits)
-        zone.intel.importance.enemy = 0
-        for _, v in enemyUnits do
-            if EntityCategoryContains(categories.STRUCTURE, v) then
-                zone.intel.importance.enemy = zone.intel.importance.enemy + 1
-            end
-        end
     end,
     -- TODO: Assess threats in each zone
     ZoneThreat = function(self,zone,alliedUnits,enemyUnits)

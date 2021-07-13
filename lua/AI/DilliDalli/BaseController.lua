@@ -1,8 +1,9 @@
-local TroopFunctions = import('/mods/DilliDalli/lua/AI/DilliDalli/TroopFunctions.lua')
-local Translation = import('/mods/DilliDalli/lua/AI/DilliDalli/FactionCompatibility.lua').translate
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
-local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
-local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local TroopFunctions = import('/mods/TechAI/lua/AI/DilliDalli/TroopFunctions.lua')
+local Translation = import('/mods/TechAI/lua/AI/DilliDalli/FactionCompatibility.lua').translate
+local CreatePriorityQueue = import('/mods/TechAI/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
+local PROFILER = import('/mods/TechAI/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+local MAP = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local RUtils = import('/mods/TechAI/lua/AI/RNGUtilities.lua')
 
 BaseController = Class({
     Initialise = function(self,brain)
@@ -241,8 +242,10 @@ BaseController = Class({
                     success = TroopFunctions.EngineerBuildMarkedStructure(self.brain,engie,unitID,"Mass")
                 elseif activeJob.job.work == "Hydro" then
                     success = TroopFunctions.EngineerBuildMarkedStructure(self.brain,engie,unitID,"Hydrocarbon")
+                elseif activeJob.job.work == "Unfinished" then
+                    success = TroopFunctions.EngineerFinishStructure(self.brain,engie,job)
                 else
-                    success = TroopFunctions.EngineerBuildStructure(self.brain,engie,unitID)
+                    success = TroopFunctions.EngineerBuildStructure(self.brain,engie,unitID,nil,nil,job)
                 end
                 start = PROFILER:Now()
                 -- Return engie back to the pool
@@ -384,13 +387,28 @@ BaseController = Class({
                 return false
             end
         elseif job.job.work == "Hydro" then
-            if (not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon")) then
+            local valid,dist=self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon")
+            if not valid then
+                return false
+            elseif job.meta.activecount>0 and dist>30 then
+                return false
+            elseif EntityCategoryContains(categories.COMMAND,unit) and dist>20 then
                 return false
             elseif (not EntityCategoryContains(categories.TECH1,unit)) and self.isBOComplete then
                 return false
             end
             -- TODO
-            return false
+            --return false
+        elseif job.job.work == "Unfinished" and EntityCategoryContains(categories.TECH1,unit) and self.isBOComplete then
+            local unfinishedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE, unit:GetPosition(), 20, 'Ally')
+            for k,v in unfinishedUnits do
+                local FractionComplete = v:GetFractionComplete()
+                if FractionComplete < 1 and table.getn(v:GetGuards()) < 1 then
+                    if not v.Dead and not v:BeenDestroyed() then
+                        return true
+                    end
+                end
+            end
         end
         if job.job.priority <= 0 or job.job.count <= 0 or job.job.targetSpend < 0 then
             return false
@@ -413,11 +431,28 @@ BaseController = Class({
             )
         )
     end,
-    CheckPriority = function(self, currentJob, newJob)
+    CheckPriority = function(self, currentJob, newJob, unit)
         -- Return true if the new job should be higher priority than the old job.
         -- Check the old one is actually set yet
         if (not currentJob) then
             return newJob.job.priority > 0
+        end
+        -- Check for job area and recalculate priority locally
+        local currentPriority = currentJob.job.priority
+        local newPriority = newJob.job.priority
+        if currentJob.job.area=='Base' then
+            if VDist3(self.brain.intel.allies[1],unit:GetPosition())<50 then
+                --currentPriority=currentPriority+100
+            else
+                currentPriority=currentPriority-100
+            end
+        end
+        if newJob.job.area=='Base' then
+            if VDist3(self.brain.intel.allies[1],unit:GetPosition())<50 then
+                --newPriority=newPriority+100
+            else
+                newPriority=newPriority-100
+            end
         end
         -- Check if one is a build order, in which case prioritise it.
         if currentJob.job.buildOrder and (not newJob.job.buildOrder) then
@@ -447,7 +482,7 @@ BaseController = Class({
         for _, job in jobs do
             -- TODO: Support assitance
             -- TODO: Support location constraints
-            if self:CanDoJob(unit,job) and self:CheckPriority(bestJob,job) then
+            if self:CanDoJob(unit,job) and self:CheckPriority(bestJob,job,unit) then
                 bestJob = job
             end
         end
@@ -512,7 +547,10 @@ BaseController = Class({
         local n = 0
         local engies = {}
         for _, v in units do
-            if (not v.CustomData or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned))) and (not v:IsBeingBuilt()) and (not v.Dead) then
+            if v and not v.Dead and not v.renderbuildqueue then
+                ForkThread(RUtils.RenderBuildQueue,v)
+            end
+            if (not v.CustomData or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned))) and (not v:IsBeingBuilt()) and (not v.Dead) and not (v.EngineerBuildQueue and table.getn(v.EngineerBuildQueue) > 0) then
                 table.insert(engies,v)
             end
         end
@@ -662,12 +700,19 @@ BaseController = Class({
         LOG("===== END LOG =====")
     end,
 
-    BaseIssueBuildMobile = function(self, units, pos, bp, id)
+    BaseIssueBuildMobile = function(self, units, pos, bp, id, structure)
         table.insert(self.pendingStructures, { pos=table.copy(pos), bp=bp, id=id })
+        for _,engie in units do
+            if not engie.EngineerBuildQueue then
+                engie.EngineerBuildQueue={}
+            end
+            local newEntry = {structure, pos, false, true}
+            table.insert(engie.EngineerBuildQueue, newEntry)
+        end
         -- TODO: check this later
         IssueBuildMobile(units,pos,bp.BlueprintId,{})
     end,
-    BaseCompleteBuildMobile = function(self, id)
+    BaseCompleteBuildMobile = function(self, id, engie)
         local index = 0
         for k, v in self.pendingStructures do
             if v.id == id then
@@ -676,6 +721,7 @@ BaseController = Class({
         end
         if index ~= 0 then
             table.remove(self.pendingStructures,index)
+            table.remove(engie.EngineerBuildQueue,1)
         else
             WARN("BaseController: No pending structure found! ("..tostring(id)..")")
         end

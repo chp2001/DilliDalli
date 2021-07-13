@@ -1,18 +1,19 @@
 DilliDalliYeOldeAIBrainClass = AIBrain
 
-local CreateDilliDalliBrain = import('/mods/DilliDalli/lua/AI/DilliDalli/Brain.lua').CreateBrain
+local CreateDilliDalliBrain = import('/mods/TechAI/lua/AI/DilliDalli/Brain.lua').CreateBrain
 
 AIBrain = Class(DilliDalliYeOldeAIBrainClass) {
     OnCreateAI = function(self, planName)
         local per = ScenarioInfo.ArmySetup[self.Name].AIPersonality
-        if string.find(per, 'DilliDalliAIKey') then
+        if string.find(per, 'TechAI') then
             -- I don't call the standard OnCreateAI here, so do any necessary initialisation.
             self:CreateBrainShared(planName)
-            LOG('Initialising DilliDalli AI - Name: ('..self.Name..') - personality: ('..per..') ')
+            LOG('Initialising TechAI AI - Name: ('..self.Name..') - personality: ('..per..') ')
+            self.TechAI=true
             self.DilliDalli = true
             self.DilliDalliBrain = CreateDilliDalliBrain(self)
             -- Set up cheating stuff?
-            local cheatPos = string.find(per, 'DilliDalliAIKeyCheat')
+            local cheatPos = string.find(per, 'TechAIcheat')
             if cheatPos then
                 AIUtils.SetupCheat(self, true)
                 ScenarioInfo.ArmySetup[self.Name].AIPersonality = string.sub(per, 1, cheatPos - 1)

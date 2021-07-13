@@ -1,11 +1,11 @@
-name = "AI: DilliDalli"
-uid = "28F4B5A9EDE30F06-version:0.2.6"
-version = 3
+name = "AI: TechAI"
+uid = "aaa0863e-9577-330d-6969-8d82b622f1c0"
+version = 1
 copyright = "Softles"
-description = "ALPHA version: 1v1 specialist AI.  Complete AI code rewrite."
-author = "Softles"
-url = "https://github.com/HardlySoftly/DilliDalli"
-icon = "/mods/DilliDalli/bugfix.png"
+description = "Modified DilliDalli"
+author = "chp2001,softles"
+url = ""
+icon = "/mods/TechAI/T3MexIcon.png"
 selectable = true
 enabled = true
 exclusive = false
@@ -14,4 +14,11 @@ requires = { }
 requiresNames = { }
 conflicts = { }
 before = { }
-after = { }
+after = { 
+    "62e2j64a-AIUV-0910-89465-146as555a8u3",
+    "a13ac591-b2d9-4d94-0216-3d4b3cce6b97",
+    "62e2j64a-AIUV-0880-89465-146as555a8u3",
+    "a13ac591-b2d9-4d94-0217-3d4b3cce6b97",
+    "a13ac591-b2d9-4d94-0218-3d4b3cce6b97",
+    "a13ac591-b2d9-4d94-0230-3d4b3cce6b97"
+}

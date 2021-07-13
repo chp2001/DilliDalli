@@ -1,4 +1,11 @@
 translate = {
+    Unfinished = {
+        AEON = "uab1103",
+        UEF = "ueb1103",
+        CYBRAN = "urb1103",
+        SERAPHIM = "xsb1103",
+        NOMADS = "xnb1103",
+    },
     MexT1 = {
         AEON = "uab1103",
         UEF = "ueb1103",
@@ -175,11 +182,11 @@ translate = {
         NOMADS = "xnl0202",
     },
     RangedT2 = {
-        AEON = "xal0203",
+        AEON = "ual0203",
         UEF = "del0204",
         CYBRAN = "drl0204",
         SERAPHIM = "xsl0202",
-        NOMADS = "xnl0306",
+        NOMADS = "xnl0202",
     },
     AmphibiousT2 = {
         AEON = "xal0203",

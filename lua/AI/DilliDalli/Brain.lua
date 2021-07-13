@@ -1,8 +1,8 @@
-local BC = import('/mods/DilliDalli/lua/AI/DilliDalli/BaseController.lua')
-local IM = import('/mods/DilliDalli/lua/AI/DilliDalli/IntelManager.lua')
-local AM = import('/mods/DilliDalli/lua/AI/DilliDalli/ArmyMonitor.lua')
-local UC = import('/mods/DilliDalli/lua/AI/DilliDalli/UnitController.lua')
-local PM = import('/mods/DilliDalli/lua/AI/DilliDalli/ProductionManager.lua')
+local BC = import('/mods/TechAI/lua/AI/DilliDalli/BaseController.lua')
+local IM = import('/mods/TechAI/lua/AI/DilliDalli/IntelManager.lua')
+local AM = import('/mods/TechAI/lua/AI/DilliDalli/ArmyMonitor.lua')
+local UC = import('/mods/TechAI/lua/AI/DilliDalli/UnitController.lua')
+local PM = import('/mods/TechAI/lua/AI/DilliDalli/ProductionManager.lua')
 
 Brain = Class({
     OnCreate = function(self,aiBrain)

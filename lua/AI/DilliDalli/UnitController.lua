@@ -1,6 +1,6 @@
-local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
-local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
+local PROFILER = import('/mods/TechAI/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+local MAP = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local CreatePriorityQueue = import('/mods/TechAI/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
 
 UnitController = Class({
     Initialise = function(self,brain)
@@ -347,7 +347,7 @@ LandController = Class({
                     if d1 < 75 then
                         continue
                     end
-                    if (not best) or (metric > bestMetric) then
+                    if (not best) or metric > bestMetric and d0<256 then
                         best = v.pos
                         bestMetric = metric
                     end
