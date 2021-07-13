@@ -1,6 +1,5 @@
 local PROFILER = import('/mods/TechAI/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
 local MAP = import('/mods/TechAI/lua/AI/DilliDalli/Mapping.lua').GetMap()
-local Cond = import('/mods/TechAI/lua/AI/DilliDalli/ConditionalJobs.lua')
 LOW = 100
 NORMAL = 200
 HIGH = 300
